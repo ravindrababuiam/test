@@ -1,0 +1,83 @@
+name: pull-images_$(Date:yyyyMMdd)$(Rev:r)
+
+trigger: none
+
+parameters:
+- name: input_file
+  displayName: List Name With Images
+  default: images
+- name: sourceRegistry
+  displayName: Registry To Pull From
+  default: registry.hub.docker.com
+- name: targetRegistry
+  displayName: Target Registry
+  default: devcont001.azurecr.io
+- name: repo
+  displayName: Repo Name For Source Image(s)
+  default: library
+
+variables:
+- group: dev_group  # Ensure this group contains all required secrets
+
+stages:
+- stage: update_images
+  jobs:
+  - job: pull_images
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    # 🔹 Convert Windows Line Endings (Fix Invalid Reference Format)
+    - task: CmdLine@2
+      displayName: 'Convert Windows Line Endings to Unix'
+      inputs:
+        script: |
+          sed -i 's/\r$//' ${{ parameters.input_file }}.txt  # Removes \r characters
+
+    # 🔹 Debug Image Names (Check for Hidden Characters)
+    - task: CmdLine@2
+      displayName: 'Debug Image Names'
+      inputs:
+        script: |
+          echo "Checking image list format:"
+          cat -A ${{ parameters.input_file }}.txt  # Show hidden characters
+
+    # 🔹 Docker Login to Source Registry Using Username & Password
+    - task: CmdLine@2
+      displayName: 'Docker Login to Source Registry'
+      inputs:
+        script: |
+          echo "$(SOURCE_REGISTRY_PASSWORD)" | docker login ${{ parameters.sourceRegistry }} -u "$(SOURCE_REGISTRY_USERNAME)" --password-stdin
+      env:
+        SOURCE_REGISTRY_USERNAME: $(SOURCE_REGISTRY_USERNAME)  # Store this securely in Azure DevOps variables
+        SOURCE_REGISTRY_PASSWORD: $(SOURCE_REGISTRY_PASSWORD)  # Store this securely in Azure DevOps variables
+
+    # 🔹 Pull Images from Source Registry
+    - task: CmdLine@2
+      displayName: 'Docker Pull'
+      inputs:
+        script: |
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            trimmed_line=$(echo "$line" | xargs)  # Trim spaces
+            docker pull ${{ parameters.sourceRegistry }}/${{ parameters.repo }}/$trimmed_line
+          done < ${{ parameters.input_file }}.txt
+          docker images
+
+    # 🔹 Docker Login to Target Registry (Using Service Connection)
+    - task: Docker@2
+      displayName: 'Docker Login to Target Registry'
+      inputs:
+        command: login
+        containerRegistry: 'dev-acr-sp'  # Ensure this service connection is configured
+
+    # 🔹 Tag & Push Images to Target Registry
+    - task: CmdLine@2
+      displayName: 'Docker Tag and Push'
+      inputs:
+        script: |
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            trimmed_line=$(echo "$line" | xargs)  # Trim spaces
+            docker tag ${{ parameters.sourceRegistry }}/${{ parameters.repo }}/$trimmed_line ${{ parameters.targetRegistry }}/${{ parameters.repo }}/$trimmed_line
+            docker push ${{ parameters.targetRegistry }}/${{ parameters.repo }}/$trimmed_line
+          done < ${{ parameters.input_file }}.txt
+          echo "Final List of Docker Images:"
+          docker images
