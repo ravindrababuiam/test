@@ -3,112 +3,117 @@ name: pull-images_$(Date:yyyyMMdd)$(Rev:r)
 trigger: none
 
 parameters:
-- name: input_file
-  displayName: List Name With Images
-  default: images
-- name: sourceRegistry
-  displayName: Registry To Pull From
-  default: registry.hub.docker.com  # Public Docker Hub
+- name: input_file_private
+  displayName: List Name With Private Images
+  default: private_images
+- name: input_file_public
+  displayName: List Name With Public Images
+  default: public_images
+- name: privateRegistry
+  displayName: Private Registry
+  default: registry.hub.docker.com  
+- name: publicRegistry
+  displayName: Public Registry
+  default: docker.io  
 - name: targetRegistry
   displayName: Target Registry
-  default: devcont001.azurecr.io
+  default: devcont001.azurecr.io 
 
 variables:
-- group: dev_group  # Ensure this group contains required secrets for private registries
-
+- group: dev_group  
+- name: RunPrivate
+  value: "true"  
+- name: RunPublic
+  value: "true"
 stages:
 
-### **Stage 1: Pull Images from Private Registry (Requires Username & Password)**
-- stage: pull_private_images
-  displayName: "Pull Private Images"
-  condition: and(succeeded(), eq(variables['RunPrivate'], 'true'))  # Run only if triggered
-  jobs:
-  - job: pull_private
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    - task: CmdLine@2
-      displayName: 'Convert Windows Line Endings to Unix'
-      inputs:
-        script: |
-          sed -i 's/\r$//' ${{ parameters.input_file }}.txt
+  - stage: pull_private_images
+    displayName: "Pull Private Images"
+    condition: eq(variables['RunPrivate'], 'true')
+    jobs:
+      - job: pull_private
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: CmdLine@2
+            displayName: 'Convert Windows Line Endings to Unix (Private)'
+            inputs:
+              script: |
+                sed -i 's/\r$//' ${{ parameters.input_file_private }}.txt
 
-    - task: CmdLine@2
-      displayName: 'Docker Login to Private Registry'
-      inputs:
-        script: |
-          echo "$(SOURCE_REGISTRY_PASSWORD)" | docker login ${{ parameters.sourceRegistry }} -u "$(SOURCE_REGISTRY_USERNAME)" --password-stdin
-      env:
-        SOURCE_REGISTRY_USERNAME: $(SOURCE_REGISTRY_USERNAME)
-        SOURCE_REGISTRY_PASSWORD: $(SOURCE_REGISTRY_PASSWORD)
+          - task: CmdLine@2
+            displayName: 'Docker Login to Private Registry'
+            inputs:
+              script: |
+                echo "$(PRIVATE_REGISTRY_PASSWORD)" | docker login ${{ parameters.privateRegistry }} -u "$(PRIVATE_REGISTRY_USERNAME)" --password-stdin
+            env:
+              PRIVATE_REGISTRY_USERNAME: $(PRIVATE_REGISTRY_USERNAME)
+              PRIVATE_REGISTRY_PASSWORD: $(PRIVATE_REGISTRY_PASSWORD)
 
-    - task: CmdLine@2
-      displayName: 'Docker Pull (Private Registry)'
-      inputs:
-        script: |
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            trimmed_line=$(echo "$line" | xargs)
-            docker pull ${{ parameters.sourceRegistry }}/$trimmed_line
-          done < ${{ parameters.input_file }}.txt
-          docker images
+          - task: CmdLine@2
+            displayName: 'Docker Pull (Private Registry)'
+            inputs:
+              script: |
+                while IFS= read -r line || [[ -n "$line" ]]; do
+                  trimmed_line=$(echo "$line" | xargs)
+                  docker pull ${{ parameters.privateRegistry }}/$trimmed_line || exit 1
+                done < ${{ parameters.input_file_private }}.txt
+                docker images
 
-    - task: Docker@2
-      displayName: 'Docker Login to Target Registry (ACR)'
-      inputs:
-        command: login
-        containerRegistry: 'dev-acr-sp'  # Required for ACR push
+          - task: Docker@2
+            displayName: 'Docker Login to Target Registry (ACR)'
+            inputs:
+              command: login
+              containerRegistry: 'dev-acr-sp'
 
-    - task: CmdLine@2
-      displayName: 'Docker Tag and Push'
-      inputs:
-        script: |
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            trimmed_line=$(echo "$line" | xargs)
-            docker tag ${{ parameters.sourceRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
-            docker push ${{ parameters.targetRegistry }}/$trimmed_line
-          done < ${{ parameters.input_file }}.txt
-          docker images
+          - task: CmdLine@2
+            displayName: 'Docker Tag and Push (Private)'
+            inputs:
+              script: |
+                while IFS= read -r line || [[ -n "$line" ]]; do
+                  trimmed_line=$(echo "$line" | xargs)
+                  docker tag ${{ parameters.privateRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
+                  docker push ${{ parameters.targetRegistry }}/$trimmed_line || exit 1
+                done < ${{ parameters.input_file_private }}.txt
+                docker images
 
----
+  - stage: pull_public_images
+    displayName: "Pull Public Images"
+    condition: eq(variables['RunPublic'], 'true') 
+    jobs:
+      - job: pull_public
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: CmdLine@2
+            displayName: 'Convert Windows Line Endings to Unix (Public)'
+            inputs:
+              script: |
+                sed -i 's/\r$//' ${{ parameters.input_file_public }}.txt
 
-### **Stage 2: Pull Images from Public Registry (No Authentication & No Service Connection)**
-- stage: pull_public_images
-  displayName: "Pull Public Images"
-  condition: and(succeeded(), eq(variables['RunPublic'], 'true'))  # Run only if triggered
-  jobs:
-  - job: pull_public
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    - task: CmdLine@2
-      displayName: 'Convert Windows Line Endings to Unix'
-      inputs:
-        script: |
-          sed -i 's/\r$//' ${{ parameters.input_file }}.txt
+          - task: CmdLine@2
+            displayName: 'Docker Pull (Public Repository)'
+            inputs:
+              script: |
+                while IFS= read -r line || [[ -n "$line" ]]; do
+                  trimmed_line=$(echo "$line" | xargs)
+                  docker pull ${{ parameters.publicRegistry }}/$trimmed_line || exit 1
+                done < ${{ parameters.input_file_public }}.txt
+                docker images
 
-    - task: CmdLine@2
-      displayName: 'Docker Pull (Public Repository)'
-      inputs:
-        script: |
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            trimmed_line=$(echo "$line" | xargs)
-            docker pull ${{ parameters.sourceRegistry }}/$trimmed_line
-          done < ${{ parameters.input_file }}.txt
-          docker images
+          - task: Docker@2
+            displayName: 'Docker Login to Target Registry (ACR)'
+            inputs:
+              command: login
+              containerRegistry: 'dev-acr-sp'
 
-    - task: Docker@2
-      displayName: 'Docker Login to Target Registry (ACR)'
-      inputs:
-        command: login
-        containerRegistry: 'dev-acr-sp'
-
-    - task: CmdLine@2
-      displayName: 'Docker Tag and Push'
-      inputs:
-        script: |
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            trimmed_line=$(echo "$line" | xargs)
-            docker tag ${{ parameters.sourceRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
-            docker push ${{ parameters.targetRegistry }}/$trimmed_line
-          done < ${{ parameters.input_file }}.txt
-          docker images
+          - task: CmdLine@2
+            displayName: 'Docker Tag and Push (Public)'
+            inputs:
+              script: |
+                while IFS= read -r line || [[ -n "$line" ]]; do
+                  trimmed_line=$(echo "$line" | xargs)
+                  docker tag ${{ parameters.publicRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
+                  docker push ${{ parameters.targetRegistry }}/$trimmed_line || exit 1
+                done < ${{ parameters.input_file_public }}.txt
+                docker images
