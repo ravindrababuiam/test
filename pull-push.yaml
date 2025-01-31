@@ -8,76 +8,107 @@ parameters:
   default: images
 - name: sourceRegistry
   displayName: Registry To Pull From
-  default: registry.hub.docker.com
+  default: registry.hub.docker.com  # Public Docker Hub
 - name: targetRegistry
   displayName: Target Registry
   default: devcont001.azurecr.io
-- name: repo
-  displayName: Repo Name For Source Image(s)
-  default: library
 
 variables:
-- group: dev_group  # Ensure this group contains all required secrets
+- group: dev_group  # Ensure this group contains required secrets for private registries
 
 stages:
-- stage: update_images
+
+### **Stage 1: Pull Images from Private Registry (Requires Username & Password)**
+- stage: pull_private_images
+  displayName: "Pull Private Images"
+  condition: and(succeeded(), eq(variables['RunPrivate'], 'true'))  # Run only if triggered
   jobs:
-  - job: pull_images
+  - job: pull_private
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    # 🔹 Convert Windows Line Endings (Fix Invalid Reference Format)
     - task: CmdLine@2
       displayName: 'Convert Windows Line Endings to Unix'
       inputs:
         script: |
-          sed -i 's/\r$//' ${{ parameters.input_file }}.txt  # Removes \r characters
+          sed -i 's/\r$//' ${{ parameters.input_file }}.txt
 
-    # 🔹 Debug Image Names (Check for Hidden Characters)
     - task: CmdLine@2
-      displayName: 'Debug Image Names'
-      inputs:
-        script: |
-          echo "Checking image list format:"
-          cat -A ${{ parameters.input_file }}.txt  # Show hidden characters
-
-    # 🔹 Docker Login to Source Registry Using Username & Password
-    - task: CmdLine@2
-      displayName: 'Docker Login to Source Registry'
+      displayName: 'Docker Login to Private Registry'
       inputs:
         script: |
           echo "$(SOURCE_REGISTRY_PASSWORD)" | docker login ${{ parameters.sourceRegistry }} -u "$(SOURCE_REGISTRY_USERNAME)" --password-stdin
       env:
-        SOURCE_REGISTRY_USERNAME: $(SOURCE_REGISTRY_USERNAME)  # Store this securely in Azure DevOps variables
-        SOURCE_REGISTRY_PASSWORD: $(SOURCE_REGISTRY_PASSWORD)  # Store this securely in Azure DevOps variables
+        SOURCE_REGISTRY_USERNAME: $(SOURCE_REGISTRY_USERNAME)
+        SOURCE_REGISTRY_PASSWORD: $(SOURCE_REGISTRY_PASSWORD)
 
-    # 🔹 Pull Images from Source Registry
     - task: CmdLine@2
-      displayName: 'Docker Pull'
+      displayName: 'Docker Pull (Private Registry)'
       inputs:
         script: |
           while IFS= read -r line || [[ -n "$line" ]]; do
-            trimmed_line=$(echo "$line" | xargs)  # Trim spaces
-            docker pull ${{ parameters.sourceRegistry }}/${{ parameters.repo }}/$trimmed_line
+            trimmed_line=$(echo "$line" | xargs)
+            docker pull ${{ parameters.sourceRegistry }}/$trimmed_line
           done < ${{ parameters.input_file }}.txt
           docker images
 
-    # 🔹 Docker Login to Target Registry (Using Service Connection)
     - task: Docker@2
-      displayName: 'Docker Login to Target Registry'
+      displayName: 'Docker Login to Target Registry (ACR)'
       inputs:
         command: login
-        containerRegistry: 'dev-acr-sp'  # Ensure this service connection is configured
+        containerRegistry: 'dev-acr-sp'  # Required for ACR push
 
-    # 🔹 Tag & Push Images to Target Registry
     - task: CmdLine@2
       displayName: 'Docker Tag and Push'
       inputs:
         script: |
           while IFS= read -r line || [[ -n "$line" ]]; do
-            trimmed_line=$(echo "$line" | xargs)  # Trim spaces
-            docker tag ${{ parameters.sourceRegistry }}/${{ parameters.repo }}/$trimmed_line ${{ parameters.targetRegistry }}/${{ parameters.repo }}/$trimmed_line
-            docker push ${{ parameters.targetRegistry }}/${{ parameters.repo }}/$trimmed_line
+            trimmed_line=$(echo "$line" | xargs)
+            docker tag ${{ parameters.sourceRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
+            docker push ${{ parameters.targetRegistry }}/$trimmed_line
           done < ${{ parameters.input_file }}.txt
-          echo "Final List of Docker Images:"
+          docker images
+
+---
+
+### **Stage 2: Pull Images from Public Registry (No Authentication & No Service Connection)**
+- stage: pull_public_images
+  displayName: "Pull Public Images"
+  condition: and(succeeded(), eq(variables['RunPublic'], 'true'))  # Run only if triggered
+  jobs:
+  - job: pull_public
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: CmdLine@2
+      displayName: 'Convert Windows Line Endings to Unix'
+      inputs:
+        script: |
+          sed -i 's/\r$//' ${{ parameters.input_file }}.txt
+
+    - task: CmdLine@2
+      displayName: 'Docker Pull (Public Repository)'
+      inputs:
+        script: |
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            trimmed_line=$(echo "$line" | xargs)
+            docker pull ${{ parameters.sourceRegistry }}/$trimmed_line
+          done < ${{ parameters.input_file }}.txt
+          docker images
+
+    - task: Docker@2
+      displayName: 'Docker Login to Target Registry (ACR)'
+      inputs:
+        command: login
+        containerRegistry: 'dev-acr-sp'
+
+    - task: CmdLine@2
+      displayName: 'Docker Tag and Push'
+      inputs:
+        script: |
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            trimmed_line=$(echo "$line" | xargs)
+            docker tag ${{ parameters.sourceRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
+            docker push ${{ parameters.targetRegistry }}/$trimmed_line
+          done < ${{ parameters.input_file }}.txt
           docker images
