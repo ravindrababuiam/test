@@ -1,0 +1,6 @@
+solr:9.5
+zookeeper:3.9.2
+bitnami/kubectl
+bitnami/rabbitmq:3.9.13-debian-10-r61
+bitnami/bitnami-shell:10-debian-10-r313
+alpine/helm:3.16
