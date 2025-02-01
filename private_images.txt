@@ -1,0 +1,9 @@
+hello-world
+wordpress
+php
+centos:latest
+node
+httpd
+ruby
+rabbitmq:latest
+solr:latest
