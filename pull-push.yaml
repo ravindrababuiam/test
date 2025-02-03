@@ -3,117 +3,137 @@ name: pull-images_$(Date:yyyyMMdd)$(Rev:r)
 trigger: none
 
 parameters:
-- name: input_file_private
-  displayName: List Name With Private Images
-  default: private_images
-- name: input_file_public
-  displayName: List Name With Public Images
-  default: public_images
-- name: privateRegistry
-  displayName: Private Registry
-  default: registry.hub.docker.com  
-- name: publicRegistry
-  displayName: Public Registry
-  default: docker.io  
-- name: targetRegistry
-  displayName: Target Registry
-  default: devcont001.azurecr.io 
+  - name: input_file_private
+    displayName: 'List Name With Private Images'
+    default: 'private_images'
+  - name: input_file_public
+    displayName: 'List Name With Public Images'
+    default: 'public_images'
+  - name: privateRegistry
+    displayName: 'Private Registry'
+    default: 'registry.opentext.com'
+  - name: publicRegistry
+    displayName: 'Public Registry'
+    default: 'docker.io'
+  - name: targetRegistry
+    displayName: 'Target Registry'
+    default: 'nsnakscontregcem001.azurecr.io'
 
 variables:
-- group: dev_group  
-- name: RunPrivate
-  value: "true"  
-- name: RunPublic
-  value: "true"
-stages:
+  - group: dev_group
+  - name: RunPrivate
+    value: "true"
+  - name: RunPublic
+    value: "true"
 
+stages:
   - stage: pull_private_images
-    displayName: "Pull Private Images"
+    displayName: 'Pull Private Images'
     condition: eq(variables['RunPrivate'], 'true')
     jobs:
       - job: pull_private
+        displayName: 'Pull and Push Private Images'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - task: CmdLine@2
-            displayName: 'Convert Windows Line Endings to Unix (Private)'
-            inputs:
-              script: |
-                sed -i 's/\r$//' ${{ parameters.input_file_private }}.txt
+          - script: |
+              echo "Converting Windows line endings for private images file"
+              sed -i 's/\r$//' ${{ parameters.input_file_private }}.txt
+            displayName: 'Convert Line Endings (Private)'
 
-          - task: CmdLine@2
+          - script: |
+              echo "Logging into Private Registry: ${{ parameters.privateRegistry }}"
+              echo "$(PRIVATE_REGISTRY_PASSWORD)" | docker login ${{ parameters.privateRegistry }} -u "$(PRIVATE_REGISTRY_USERNAME)" --password-stdin
             displayName: 'Docker Login to Private Registry'
-            inputs:
-              script: |
-                echo "$(PRIVATE_REGISTRY_PASSWORD)" | docker login ${{ parameters.privateRegistry }} -u "$(PRIVATE_REGISTRY_USERNAME)" --password-stdin
             env:
               PRIVATE_REGISTRY_USERNAME: $(PRIVATE_REGISTRY_USERNAME)
               PRIVATE_REGISTRY_PASSWORD: $(PRIVATE_REGISTRY_PASSWORD)
 
-          - task: CmdLine@2
-            displayName: 'Docker Pull (Private Registry)'
-            inputs:
-              script: |
-                while IFS= read -r line || [[ -n "$line" ]]; do
-                  trimmed_line=$(echo "$line" | xargs)
-                  docker pull ${{ parameters.privateRegistry }}/$trimmed_line || exit 1
-                done < ${{ parameters.input_file_private }}.txt
-                docker images
+          - script: |
+              echo "Pulling private images..."
+              while IFS= read -r line || [[ -n "$line" ]]; do
+                image=$(echo "$line" | xargs)
+                if [ -z "$image" ]; then
+                  continue
+                fi
+                echo "Pulling image: $image"
+                docker pull ${{ parameters.privateRegistry }}/$image || { echo "Error: Failed to pull image: $image"; exit 1; }
+              done < ${{ parameters.input_file_private }}.txt
+              echo "Listing local Docker images:"
+              docker images
+            displayName: 'Docker Pull (Private)'
 
           - task: Docker@2
             displayName: 'Docker Login to Target Registry (ACR)'
             inputs:
               command: login
-              containerRegistry: 'dev-acr-sp'
+              containerRegistry: 'nsnakscontregcem001'
 
-          - task: CmdLine@2
+          - script: |
+              echo "Tagging and pushing private images..."
+              while IFS= read -r line || [[ -n "$line" ]]; do
+                image=$(echo "$line" | xargs)
+                if [ -z "$image" ]; then
+                  continue
+                fi
+                echo "Tagging image: $image"
+                docker tag ${{ parameters.privateRegistry }}/$image ${{ parameters.targetRegistry }}/$image
+                echo "Pushing image: $image"
+                docker push ${{ parameters.targetRegistry }}/$image || { echo "Error: Failed to push image: $image"; exit 1; }
+              done < ${{ parameters.input_file_private }}.txt
+              echo "Listing local Docker images:"
+              docker images
             displayName: 'Docker Tag and Push (Private)'
-            inputs:
-              script: |
-                while IFS= read -r line || [[ -n "$line" ]]; do
-                  trimmed_line=$(echo "$line" | xargs)
-                  docker tag ${{ parameters.privateRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
-                  docker push ${{ parameters.targetRegistry }}/$trimmed_line || exit 1
-                done < ${{ parameters.input_file_private }}.txt
-                docker images
 
   - stage: pull_public_images
-    displayName: "Pull Public Images"
-    condition: eq(variables['RunPublic'], 'true') 
+    displayName: 'Pull Public Images'
+    condition: eq(variables['RunPublic'], 'true')
     jobs:
       - job: pull_public
+        displayName: 'Pull and Push Public Images'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - task: CmdLine@2
-            displayName: 'Convert Windows Line Endings to Unix (Public)'
-            inputs:
-              script: |
-                sed -i 's/\r$//' ${{ parameters.input_file_public }}.txt
+          - script: |
+              echo "Converting Windows line endings for public images file"
+              sed -i 's/\r$//' ${{ parameters.input_file_public }}.txt
+            displayName: 'Convert Line Endings (Public)'
 
-          - task: CmdLine@2
-            displayName: 'Docker Pull (Public Repository)'
-            inputs:
-              script: |
-                while IFS= read -r line || [[ -n "$line" ]]; do
-                  trimmed_line=$(echo "$line" | xargs)
-                  docker pull ${{ parameters.publicRegistry }}/$trimmed_line || exit 1
-                done < ${{ parameters.input_file_public }}.txt
-                docker images
+          - script: |
+              echo "Pulling public images..."
+              while IFS= read -r line || [[ -n "$line" ]]; do
+                image=$(echo "$line" | xargs)
+                if [ -z "$image" ]; then
+                  continue
+                fi
+                echo "Pulling image: $image"
+                docker pull ${{ parameters.publicRegistry }}/$image || { echo "Error: Failed to pull image: $image"; exit 1; }
+              done < ${{ parameters.input_file_public }}.txt
+              echo "Listing local Docker images:"
+              docker images
+            displayName: 'Docker Pull (Public)'
 
           - task: Docker@2
             displayName: 'Docker Login to Target Registry (ACR)'
             inputs:
               command: login
-              containerRegistry: 'dev-acr-sp'
+              containerRegistry: 'nsnakscontregcem001'
 
-          - task: CmdLine@2
+          - script: |
+              echo "Tagging and pushing public images..."
+              while IFS= read -r line || [[ -n "$line" ]]; do
+                image=$(echo "$line" | xargs)
+                if [ -z "$image" ]; then
+                  continue
+                fi
+                echo "Tagging image: $image"
+                docker tag ${{ parameters.publicRegistry }}/$image ${{ parameters.targetRegistry }}/$image
+                echo "Pushing image: $image"
+                docker push ${{ parameters.targetRegistry }}/$image || { echo "Error: Failed to push image: $image"; exit 1; }
+              done < ${{ parameters.input_file_public }}.txt
+              echo "Listing local Docker images:"
+              docker images
             displayName: 'Docker Tag and Push (Public)'
-            inputs:
-              script: |
-                while IFS= read -r line || [[ -n "$line" ]]; do
-                  trimmed_line=$(echo "$line" | xargs)
-                  docker tag ${{ parameters.publicRegistry }}/$trimmed_line ${{ parameters.targetRegistry }}/$trimmed_line
-                  docker push ${{ parameters.targetRegistry }}/$trimmed_line || exit 1
-                done < ${{ parameters.input_file_public }}.txt
-                docker images
+
+
+
