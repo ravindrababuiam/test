@@ -1,0 +1,46 @@
+name: deploy-helm-chart_$(Date:yyyyMMdd)$(Rev:r)
+
+trigger: none
+
+variables:
+  helmChartVersion: '24.2.0'  # Added version variable
+  helmChartFile: 'opentext-experience-cloud-$(helmChartVersion).tggz'
+  helmValuesFile: 'Values_OTDS_MQ.yaml'
+  releaseName: 'experience-deployment'
+  namespace: 'experience'  # Changed to custom namespace
+  kubernetesServiceConnection: 'dev-aks-cluster-sp'
+
+stages:
+- stage: deploy_chart
+  displayName: 'Deploy Helm Chart to AKS'
+  jobs:
+    - job: deploy_helm_chart
+      pool:
+        vmImage: 'ubuntu-latest'
+      steps:
+        - task: Checkout@2
+          displayName: 'Checkout Git Repository'
+
+        - task: HelmInstaller@0
+          displayName: 'Install Helm'
+          inputs:
+            helmVersionToInstall: 'latest'
+
+        - task: Bash@3
+          displayName: 'Lint Helm Chart'
+          inputs:
+            targetType: 'inline'
+            script: |
+              helm lint $(Build.SourcesDirectory)/$(helmChartFile) -f $(Build.SourcesDirectory)/$(helmValuesFile)
+
+        - task: HelmDeploy@0
+          displayName: 'Deploy Helm Chart to AKS'
+          inputs:
+            connectionType: 'Kubernetes'
+            kubernetesServiceConnection: '$(kubernetesServiceConnection)'
+            namespace: '$(namespace)'
+            command: 'upgrade'  # Changed from 'install'
+            releaseName: '$(releaseName)'
+            chartType: 'FilePath'
+            chartPath: '$(Build.SourcesDirectory)/$(helmChartFile)'
+            arguments: '--install --wait --timeout 10m0s --debug -f $(Build.SourcesDirectory)/$(helmValuesFile)'
