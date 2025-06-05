@@ -5,7 +5,7 @@
 		"factoryName": {
 			"type": "string",
 			"metadata": "Data Factory name",
-			"defaultValue": "ukw-adf-d365int-core-dev"
+			"defaultValue": "uks-adf-d365int-core-dev"
 		},
 		"LS_BlobStorage_MI_properties_typeProperties_serviceEndpoint": {
 			"type": "string",
@@ -45,15 +45,15 @@
 		},
 		"default_properties_GeneralJournalAzureKeyVault_value": {
 			"type": "string",
-			"defaultValue": "https://ukw-akv-d365int-gj-dev.vault.azure.net/"
+			"defaultValue": "https://uks-akv-d365int-gj-dev.vault.azure.net/"
 		},
 		"default_properties_SelfBillingAzureKeyVault_value": {
 			"type": "string",
-			"defaultValue": "https://ukw-akv-d365int-sb-dev.vault.azure.net/"
+			"defaultValue": "https://uks-akv-d365int-sb-dev.vault.azure.net/"
 		},
 		"default_properties_FreeTextInvoiceAzureKeyVault_value": {
 			"type": "string",
-			"defaultValue": "https://ukw-akv-d365int-ft-dev.vault.azure.net/"
+			"defaultValue": "https://uks-akv-d365int-ft-dev.vault.azure.net/"
 		},
 		"default_properties_GeneralJournalConfigFile_value": {
 			"type": "string",
@@ -73,11 +73,11 @@
 		},
 		"default_properties_LSMIServiceEndpoint_value": {
 			"type": "string",
-			"defaultValue": "https://ukwd365intdev.blob.core.windows.net/"
+			"defaultValue": "https://uksd365intdev.blob.core.windows.net/"
 		},
 		"default_properties_ErrorStorageAccountName_value": {
 			"type": "string",
-			"defaultValue": "ukwd365intdev"
+			"defaultValue": "uksd365intdev"
 		},
 		"default_properties_ParagonOutboundConfigFile_value": {
 			"type": "string",
@@ -93,11 +93,11 @@
 		},
 		"default_properties_ParagonAzureKeyVault_value": {
 			"type": "string",
-			"defaultValue": "https://ukw-akv-d365int-Para-dev.vault.azure.net/"
+			"defaultValue": "https://uks-akv-d365int-Para-dev.vault.azure.net/"
 		},
 		"default_properties_LSMIParagonServiceEndPoint_value": {
 			"type": "string",
-			"defaultValue": "https://ukwd365intdev.blob.core.windows.net/"
+			"defaultValue": "https://uksd365intdev.blob.core.windows.net/"
 		},
 		"default_properties_ParagonInboundConfigFile_value": {
 			"type": "string",
@@ -117,7 +117,7 @@
 		},
 		"default_properties_CoreAzureKeyVault_value": {
 			"type": "string",
-			"defaultValue": "https://ukw-akv-d365int-core-dev.vault.azure.net/"
+			"defaultValue": "https://uks-akv-d365int-core-dev.vault.azure.net/"
 		}
 	},
 	"variables": {
@@ -3453,8 +3453,6 @@
 										"compute": {
 											"coreCount": 16,
 											"computeType": "General"
-											"computeType": "ComputeReference",
-											"referenceName": "shir-dev-core"
 										},
 										"traceLevel": "Fine"
 									}
@@ -4939,8 +4937,6 @@
 										"compute": {
 											"coreCount": 16,
 											"computeType": "General"
-											"computeType": "ComputeReference",
-											"referenceName": "shir-dev-core"
 										},
 										"traceLevel": "Fine"
 									}
@@ -6415,8 +6411,6 @@
 										"compute": {
 											"coreCount": 16,
 											"computeType": "General"
-											"computeType": "ComputeReference",
-											"referenceName": "shir-dev-core"
 										},
 										"traceLevel": "Fine"
 									}
@@ -9598,6 +9592,10 @@
 					{
 						"name": "Send Error Email",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "Get Error Email Secret",
@@ -9643,6 +9641,10 @@
 						"name": "Get Error Email Secret",
 						"description": "Get Azure Key Secret from the Key Vault",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [],
 						"policy": {
 							"timeout": "7.00:00:00",
@@ -11297,6 +11299,10 @@
 					{
 						"name": "Send Success Email",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "Get Success Email Secret",
@@ -11340,6 +11346,10 @@
 						"name": "Get Success Email Secret",
 						"description": "Get Azure Key Secret from the Key Vault",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [],
 						"policy": {
 							"timeout": "7.00:00:00",
@@ -11411,6 +11421,10 @@
 						"name": "AuthenticationLogin",
 						"description": "Authenticate with D365 ",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "Get Azure Key Secret",
@@ -11446,6 +11460,10 @@
 						"name": "GetAzureWriteUrl",
 						"description": "Get the Azure Blob url of the D365",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "AuthenticationLogin",
@@ -11484,6 +11502,10 @@
 						"name": "Get Azure Key Secret",
 						"description": "Get Azure Key Secret from the Key Vault",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "Get TenantID",
@@ -11695,6 +11717,10 @@
 						"name": "Get TenantID",
 						"description": "Get Tenant ID Secret from the Key Vault",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "if file exists",
@@ -11815,6 +11841,10 @@
 						"name": "Execute import",
 						"description": "Import the package stored in the dmf to the d365",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "Generate Execution Id",
@@ -13107,6 +13137,10 @@
 					{
 						"name": "Check Import Status",
 						"type": "WebActivity",
+                        "connectVia": {
+                            "referenceName": "shir-dev-core",
+                            "type": "IntegrationRuntimeReference"
+                        },
 						"dependsOn": [
 							{
 								"activity": "Check Import Status Delay",
@@ -15270,7 +15304,6 @@
 					"type": "IntegrationRuntimeReference"
 				}
 			},
-			"dependsOn": []
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/integrationRuntimes/shir-dev-core')]"
 			]
@@ -15295,7 +15328,6 @@
 					"type": "IntegrationRuntimeReference"
 				}
 			},
-			"dependsOn": []
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/integrationRuntimes/shir-dev-core')]"
 			]
@@ -15308,7 +15340,7 @@
 				"parameters": {
 					"ParagonAzureKeyVault": {
 						"type": "string",
-						"defaultValue": "https://ukw-akv-d365int-Para-dev.vault.azure.net/"
+						"defaultValue": "https://uks-akv-d365int-Para-dev.vault.azure.net/"
 					}
 				},
 				"annotations": [],
@@ -15321,7 +15353,6 @@
 					"type": "IntegrationRuntimeReference"
 				}
 			},
-			"dependsOn": []
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/integrationRuntimes/shir-dev-core')]"
 			]
@@ -15347,7 +15378,6 @@
 					"type": "IntegrationRuntimeReference"
 				}
 			},
-			"dependsOn": []
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/integrationRuntimes/shir-dev-core')]"
 			]
